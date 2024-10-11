@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <regex.h>
 typedef enum {
     IDENTIFIER, // var identifier
     KEYWORD,    // keyword
@@ -39,21 +40,25 @@ typedef enum {
     TEOF        // EOF
 } TokType;
 
+#define longestkw 10
+#define shortestkw 2
+#define numKw 14
 char* keywords[]={
-    "if", 
-    "else", 
-    "elif", 
-    "jump_if", 
-    "jump", 
-    "func", 
-    "not", 
-    "and", 	    
-    "or", 
-    "xor", 
-    "let", 
-    "jump_depth"
+    "if", 		//if
+    "else", 		//ee
+    "elif", 		//ef
+    "jump_if",		//jf 
+    "jump", 		//jp
+    "func", 		//fc
+    "not", 		//nt
+    "malloc",		//mc
+    "free",		//fe
+    "and", 		//ad
+    "or", 		//or
+    "xor", 		//xr
+    "let",	 	//lt
+    "jump_depth"	//jh
 };
-
 
 typedef struct {
 	char* ptr;
@@ -67,6 +72,22 @@ int strLen(char* str){
 		}
 		ln++;
 	}
+}
+
+int matchKw(char* str){
+	if(strLen(str)>(longestkw)) return 0;
+	if(strLen(str)<shortestkw) return 0;
+	for(int i=0; i<numKw;i++){
+		if(strLen(keywords[i])!=strLen(str)) continue;
+		int q=1;
+		for(int j=0; j<strLen(str); j++){
+			if(!q) continue;
+			if(str[j]!=keywords[i][j]) q=0;
+		}
+		if(q) return 1;
+		
+	}
+	return 0;
 }
 
 void initStrBuf(StrBuf* str){
@@ -218,8 +239,36 @@ void advanceLexer(Lexer* lexer){
 		lexer->col=0;
 	}
 }
-void parseNameLexer(Lexer* lexer){}
-void parseNumLexer(Lexer* lexer){}
+void parseNameLexer(Lexer* lexer){
+	regex_t strRegCompiled;
+	StrBuf* a=malloc(sizeof(StrBuf));
+	regcomp(&strRegCompiled, "[A-Za-z0-9_]", REG_EXTENDED);
+	regfree(&strRegCompiled);
+	free(a);
+	
+}
+void parseNumLexer(Lexer* lexer){
+	regex_t numRegCompiled;
+	
+	StrBuf* a=malloc(sizeof(StrBuf));
+	char* b=malloc(2);
+	regcomp(&numRegCompiled,"[0-9]", REG_EXTENDED);
+	b[0]=*lexer->current;
+	b[1]='\0';
+	int c=1;
+	regmatch_t matches[1];
+	while(c){
+		if(regexec(&numRegCompiled,b,1,matches,0)==0){
+		
+		}
+	}
+	regfree(&numRegCompiled);
+	// "(0|[1-9][0-9]*)?\.(0|[0-9]*[1-9])";
+
+	// "(0|[1-9][0-9]*)";
+	free(b);
+	free(a);
+	}
 void parseLexer(Lexer* lexer){}
 int main() {
 	printf("Hellooo\n");
@@ -229,6 +278,8 @@ int main() {
 	printf("Hellooo\n");
 	writeChar(str,'H');
 	printf("Hellooo\n");
+	printf("%d\n",matchKw("jump_depth"));
+	printf("%d\n",matchKw("jump_deptt"));
 
 	Token* tok=malloc(sizeof(Token));
 	initToken(tok, LCURL, 0, 1, 1, "aaaaa");
