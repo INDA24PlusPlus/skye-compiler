@@ -1,0 +1,19 @@
+<type> ::= "int" | "float" | "(" <typechain> ")" | <typechain> | <tuple>
+<tuple> ::= "(" <type> "," ( <type> "," )* <type> ")"
+<typechain> ::= <type> "->" ( <type> | <typechain> ) 
+<int> ::= "0" | [1-9] [0-9]*
+<float> ::= <int> "." [0-9]+
+<atom> ::= ( "(" <term> ")" | "(" <expr> ")" | "(" <atom> ")" | <int> | <float> | <varname> )
+<term> ::= <atom> ( "*" | "/" ) <atom>
+<expr> ::= <term> ( "+" | "-" ) <term>
+<varname> ::= ( [a-z] | [A-Z] | "_" )+
+<assign> ::= <varname> "=" ( <assign> | <expr> )
+<declaration> ::= "let " <assign>
+<args> ::= ( <varname> "," )* <varname>
+<func> ::= "func " <typechain> "(" <args> ")" 
+<flag> ::= "::" <varname> "::"
+<comparison> ::= <expr> ( "<" | "<=" | ">" | ">=" | "==" | "!=" ) <expr>
+<cmp_union> ::= " and " | " && " | " or " | " || " | " xor " | " $$ "
+<bool> ::= "true" | "false"
+<cmp_atom> ::= <bool> | "(" <cmp_expr> ")" | "(" <cmp_atom> ")"
+<cmp_expr> ::= <cmp_atom> <cmp_union> <cmp_atom>

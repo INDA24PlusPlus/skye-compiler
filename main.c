@@ -269,7 +269,75 @@ void parseNumLexer(Lexer* lexer){
 	free(b);
 	free(a);
 	}
+
+
 void parseLexer(Lexer* lexer){}
+
+typedef enum {
+	NUMBER_NODE,
+	TYPE_NODE,
+	TYPECHAIN_NODE,
+	BIN_OP_NODE,
+	UN_OP_NODE,
+	VAR_ASSIGN_NODE,
+	VAR_ACCESS_NODE,
+	IF_NODE,
+	FOR_NODE,
+	WHILE_NODE,
+	FLAG_NODE,
+	JUMP_NODE,
+	JUMP_IF_NODE,
+	FUNC_DEF_NODE,
+	CALL_NODE
+} NodeType;
+typedef struct{
+	NodeType* type;
+	Token* token;
+} NumberNode;
+typedef struct{} TypeNode;
+typedef struct{} TypechainNode;
+typedef struct{
+	NodeType* type;
+	void* left;
+	Token* token;
+	void* right;
+} BinaryOpNode;
+typedef struct{
+	NodeType* type;
+	void* node;
+	Token* token;
+} UnaryOpNode;
+typedef struct{
+	NodeType* type;
+} VarAssignNode;
+typedef struct{
+	NodeType* type;
+} VarAccessNod;
+typedef struct{
+	NodeType* type;
+} IfNode;
+typedef struct{
+	NodeType* type;
+} WhileNode;
+typedef struct{
+	NodeType* type;
+} ForNode;
+typedef struct{
+	NodeType* type;
+} FlagNode;
+typedef struct{
+	NodeType* type;
+} JumpNode;
+typedef struct{
+	NodeType* type;
+} JumpIfNode;
+typedef struct{
+	NodeType* type;
+} FuncDefNode;
+typedef struct{
+	NodeType* type;
+} CallNode;
+
 int main() {
 	printf("Hellooo\n");
 	StrBuf* str=malloc(sizeof(StrBuf));
