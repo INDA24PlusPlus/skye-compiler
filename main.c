@@ -43,24 +43,27 @@ typedef enum {
 
 #define longestkw 10
 #define shortestkw 2
-#define numKw 16
+#define numKw 19
 char* keywords[]={
-    "if", 		//if
-    "else", 		//ee
-    "elif", 		//ef
-    "jump_if",		//jf
-    "jump", 		//jp
-    "func", 		//fc
-    "not", 		//nt
-    "malloc",		//mc
-    "free",		//fe
-    "and", 		//ad
-    "or", 		//or
-    "xor", 		//xr
-    "pow",		//pw
-    "let",	 	//lt
-    "jump_depth",	//jh
-    "continue"		//ce
+	"if", 		//if
+	"else", 	//ee
+	"elif", 	//ef
+	"jump_if",	//jf
+	"jump", 	//jp
+	"func", 	//fc
+	"not", 		//nt
+	"malloc",	//mc
+	"free",		//fe
+	"and", 		//ad
+	"or", 		//or
+	"xor", 		//xr
+	"pow",		//pw
+	"let",	 	//lt
+	"jump_depth",	//jh
+	"continue",	//ce
+	"return",	//rn
+    	"for",		//fr
+    	"while"		//we
 };
 
 typedef struct {
@@ -170,7 +173,7 @@ Token* initToken(TokType type, int idx_start, int col_start, int ln_start, char*
 	return ptr;
 }
 void printToken(Token* ptr){
-	printf("[Type:%d, Val:%s]",*ptr->type,ptr->expr);
+	printf("[Type:%d, Val:%s; Line:%d, Column:%d]",*ptr->type,ptr->expr,*ptr->ln_start,*ptr->col_start);
 }
 typedef struct{
 	Token** tokens;
@@ -310,7 +313,6 @@ void parseLexer(Lexer* lexer){
 		printf("%c",*lexer->current);
 		switch(*lexer->current){
 			case '\n':
-				appendToken(lexer->toks,initToken(NEWLINE, *lexer->index, *lexer->col, *lexer->line, "NEWLINE"));
 				*lexer->line=*lexer->line+1;
 				*lexer->col=0;
 				advanceLexer(lexer);
@@ -460,6 +462,9 @@ void parseLexer(Lexer* lexer){
 			case ' ':
 				advanceLexer(lexer);
 				break;
+			case '\t':
+				advanceLexer(lexer);
+				break;
 			case '\0':
 				appendToken(lexer->toks,initToken(TEOF, *lexer->index, *lexer->col, *lexer->line, "EOF"));
 				c=0;
@@ -507,8 +512,8 @@ LinkedListToken* fromCollection(Tokens* toks){
 }
 
 typedef enum {
-	ROOT_NODE,
 	NUMBER_NODE,
+	CURLY_NODE,
 	TYPE_NODE,
 	TYPECHAIN_NODE,
 	BIN_OP_NODE,
@@ -524,13 +529,16 @@ typedef enum {
 	FUNC_DEF_NODE,
 	CALL_NODE
 } NodeType;
-typedef struct{struct Node* node;} Root;
 typedef struct{Token* token;} Number;
 typedef struct{
 	struct Node* left;
 	Token* token; 
 	struct Node* right;
 } Binop;
+typedef struct{
+	struct Node** nodes;
+	int* len;
+} CurlyBlock;
 typedef struct{
 	struct Node* node;
 	Token* token;
@@ -583,7 +591,7 @@ typedef struct{
 	struct Node** args;
 } Call;
 typedef union{
-	Root* root;
+	CurlyBlock* curly_block;
 	Number* number;
 	struct{}* type;
 	struct{}* typechain;
@@ -645,8 +653,24 @@ Parser* initParser(Tokens* toks){
 void advanceParser(Parser* parser){
 	parser->LLT=(LinkedListToken *)parser->LLT->next;
 }
-Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, int tokc, char* expr){
-	if(path=='a'){
+Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, int tokc, char* tExpr){
+	if(path=='P'){	// Parse
+		Node* node=parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
+		if((*parser->LLT->self->type)!=SEMICOLON){
+			printf("Invalid token:%s at line:%d, column:%d, expected ';'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+		if(strcmp(tExpr,"isRoot")==0){
+			AddRoot(parser->ast, node);
+			if((*parser->LLT->self->type)!=TEOF){
+				parseTokens(parser,'P',' ',' ',NULL,0,"isRoot");
+			}
+			return node;	
+		}
+		return node;	
+	}
+	if(path=='a'){	// Atom
 		TokType tt=*parser->LLT->self->type;
 		if(tt==FLOAT||tt==INTEGER){
 			Number* num=malloc(sizeof(Number));
@@ -681,21 +705,25 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 				return parseTokens(parser, 'i', ' ', ' ', NULL, 0, "");
 			}
 			else if(strcmp("for", parser->LLT->self->expr)==0){
-				return parseTokens(parser, 'f', ' ', ' ', NULL, 0, "");
+				return parseTokens(parser, 'F', ' ', ' ', NULL, 0, "");
 			}
 			else if(strcmp("while", parser->LLT->self->expr)==0){
 				return parseTokens(parser, 'w', ' ', ' ', NULL, 0, "");
 			}
 			else if(strcmp("func", parser->LLT->self->expr)==0){
-				return parseTokens(parser, 'F', ' ', ' ', NULL, 0, "");
+				return parseTokens(parser, 'D', ' ', ' ', NULL, 0, "");
 			}
 
 		}
 		printf("Invalid token:%s at line:%d, column:%d\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
 		exit(1);
 	}
-	if(path=='e'){
+	if(path=='e'){	// Expr
 		TokType tt=*parser->LLT->self->type;
+		if(tt==FLAG){
+			Node* flag=parseTokens(parser, 'L', ' ', ' ', NULL, 0, "");
+			return flag;
+		}
 		if(tt==KEYWORD){
 			if(strcmp("not", parser->LLT->self->expr)==0){
 				Unop* un=malloc(sizeof(Unop));
@@ -718,7 +746,6 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 				}
 				*va->token=*parser->LLT->self;
 				advanceParser(parser);
-				va->token=malloc(sizeof(Token));
 				if(*parser->LLT->self->type!=EQ&&*parser->LLT->self->type!=LARROW){
 					printf("Invalid token:%s at line:%d, column:%d, expected '=' or '<-'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
 					exit(1);
@@ -730,27 +757,254 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 				nw->var_assign=va;
 				return(initNode(VAR_ASSIGN_NODE, nw));
 			}
+			else if(strcmp("jump", parser->LLT->self->expr)==0){
+				Node* node=parseTokens(parser, 'J', ' ', ' ', NULL, 0, "");
+				return node;
+			}
+			else if(strcmp("jump_if", parser->LLT->self->expr)==0){
+				Node* node=parseTokens(parser, 'j', ' ', ' ', NULL, 0, "");
+				return node;
+			}
+			
 		}
+		TokType* tts=malloc(sizeof(TokType)*3);
+		tts[0]=AND;
+		tts[1]=OR;
+		tts[2]=XOR;
+		Node* node=parseTokens(parser, 'b', 'C', 'C', tts, 3, "");
+		free(tts);
+		return node;
+
 	}
-	if(path=='w'){
+	if(path=='w'){	// While
+		WhileNode* wn=malloc(sizeof(WhileNode));
+		advanceParser(parser);
+		if(*parser->LLT->self->type!=LPAREN){
+			printf("Invalid token:%s at line:%d, column:%d, expected '('\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+		wn->condition=(struct Node*)parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
+		if(*parser->LLT->self->type!=RPAREN){
+			printf("Invalid token:%s at line:%d, column:%d, expected ')'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+		wn->body=(struct Node*)parseTokens(parser, 'B', ' ', ' ', NULL, 0, "");
+		NodeWrapper* nw=malloc(sizeof(NodeWrapper));
+		nw->while_node=wn;
+		return initNode(WHILE_NODE, nw);
+
+
+	}
+	if(path=='F'){	// For
+		ForNode* fn=malloc(sizeof(ForNode));
+		advanceParser(parser);
+		if(*parser->LLT->self->type!=LPAREN){
+			printf("Invalid token:%s at line:%d, column:%d, expected '('\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+		if(strcmp(parser->LLT->self->expr, "let")!=0){
+			printf("Invalid token:%s at line:%d, column:%d, expected 'let'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+		if(*parser->LLT->self->type!=IDENTIFIER){
+			printf("Invalid token:%s at line:%d, column:%d, expected identifier\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		fn->variable=malloc(sizeof(Token));
+		*fn->variable=*parser->LLT->self;
+		advanceParser(parser);
+		if(*parser->LLT->self->type!=EQ&&*parser->LLT->self->type!=LARROW){
+			printf("Invalid token:%s at line:%d, column:%d, expected '=' or '<-'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+		fn->start=(struct Node*)parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
+		if(*parser->LLT->self->type!=RARROW){
+			printf("Invalid token:%s at line:%d, column:%d, expected '->'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+		fn->end=(struct Node*)parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
+		if(*parser->LLT->self->type!=COLON){
+			printf("Invalid token:%s at line:%d, column:%d, expected ':'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+		fn->step=(struct Node*)parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
+		if(*parser->LLT->self->type!=RPAREN){
+			printf("Invalid token:%s at line:%d, column:%d, expected ')'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+		fn->body=(struct Node*)parseTokens(parser, 'B', ' ', ' ', NULL, 0, "");
+		NodeWrapper* nw=malloc(sizeof(NodeWrapper));
+		nw->for_node=fn;
+		return initNode(FOR_NODE, nw);
+	}
+	if(path=='D'){	// Function Def
+		Token* funcName;
+		ArgSet** args=malloc(1);
+		int argLen=0;
+		advanceParser(parser);
+		funcName=parser->LLT->self;
+		advanceParser(parser);
+		if(*parser->LLT->self->type!=LPAREN){
+			printf("Invalid token:%s at line:%d, column:%d, expected ')'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+		if(*parser->LLT->self->type!=RPAREN){
+			int p=1;
+			while(p){
+				if(*parser->LLT->self->type==IDENTIFIER){
+					ArgSet* arg=malloc(sizeof(ArgSet));
+					arg->name=malloc(sizeof(Token));
+					*arg->name=*parser->LLT->self;
+					args=realloc(args, ((argLen)+2)*sizeof(ArgSet*));
+					args[argLen]=arg;
+					argLen+=1;
+					advanceParser(parser);
+					if(*parser->LLT->self->type==RPAREN) p=0;
+					else if(*parser->LLT->self->type==COMMA) advanceParser(parser);
+					else {
+						printf("Invalid token:%s at line:%d, column:%d, expected ',' or ')'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+						exit(1);
+					}
+				}
+				else{
+						printf("Invalid token:%s at line:%d, column:%d, expected Identifier\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+						exit(1);
+
+				}
+			}
+			
+
+		}
+		advanceParser(parser);
+		Node* body=parseTokens(parser, 'B',  ' ', ' ', NULL, 0, "");
+		FuncDef* fd=malloc(sizeof(FuncDef));
+		fd->body=(struct  Node*)body;
+		fd->args=args;
+		fd->var_name=funcName;
+		NodeWrapper* nw=malloc(sizeof(NodeWrapper));
+		nw->func_def=fd;
+		return initNode(FUNC_DEF_NODE, nw);
+	}
+	if(path=='i'){	// If Expr
+		IfSet** cases=malloc(1);
+		int nSets=0;
+		if(strcmp(parser->LLT->self->expr, "if")!=0){
+			printf("Invalid token:%s at line:%d, column:%d, expected 'if'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		int p=1;
+		advanceParser(parser);		
+		IfSet* set=malloc(sizeof(IfSet));
+		set->condition=(struct Node*)parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
+		set->expression=(struct Node*)parseTokens(parser, 'B', ' ', ' ', NULL, 0, "");
+		cases=realloc(cases, ((nSets)+2)*sizeof(IfSet*));
+		cases[nSets]=set;
+		nSets++;
+		if(strcmp(parser->LLT->self->expr,"elif")!=0){
+			p=0;
+		}
+		while(p){
+			advanceParser(parser);		
+			IfSet* set=malloc(sizeof(IfSet));
+			set->condition=(struct Node*)parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
+			set->expression=(struct Node*)parseTokens(parser, 'B', ' ', ' ', NULL, 0, "");
+			cases=realloc(cases, ((nSets)+2)*sizeof(IfSet*));
+			cases[nSets]=set;
+			nSets++;
+			if(strcmp(parser->LLT->self->expr,"elif")!=0){
+				p=0;
+			}
+		}
+		if(strcmp(parser->LLT->self->expr,"else")!=0){
+			printf("Invalid token:%s at line:%d, column:%d, expected 'else' or 'elif'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+		Node* elsecase=parseTokens(parser, 'B', ' ', ' ', NULL, 0, "");
+
+		IfNode* in=malloc(sizeof(IfNode));
+		in->cases=cases;
+		in->elsecase=(struct Node*)elsecase;
+		NodeWrapper* nw=malloc(sizeof(NodeWrapper));
+		nw->if_node=in;
+		return initNode(IF_NODE, nw);
+	}
+	if(path=='J'){ 	// Jump
+		advanceParser(parser);
+		Jump* jump=malloc(sizeof(Jump));
+		if(*parser->LLT->self->type!=IDENTIFIER){
+			printf("Invalid token:%s at line:%d, column:%d, expected Identifier\n",parser->LLT->self->expr,*parser->LLT->self->ln_start,*parser->LLT->self->col_start);
+			exit(1);
+		}
+		jump->flag_name=malloc(sizeof(Token));
+		*jump->flag_name=*parser->LLT->self;
+		advanceParser(parser);
+		NodeWrapper* nw=malloc(sizeof(NodeWrapper));
+		nw->jump=jump;
+		return initNode(JUMP_NODE,nw);
+
+	}
+	if(path=='j'){	// Jump If
+		advanceParser(parser);
+		JumpIf* jumpi=malloc(sizeof(JumpIf));
+		if(*parser->LLT->self->type!=LPAREN){
+			printf("Invalid token:%s at line:%d, column:%d, expected '('\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+		jumpi->condition=(struct Node*)parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
+		if(*parser->LLT->self->type!=RPAREN){
+			printf("Invalid token:%s at line:%d, column:%d, expected ')'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			exit(1);
+		}
+		advanceParser(parser);
+
+		if(*parser->LLT->self->type!=IDENTIFIER){
+			printf("Invalid token:%s at line:%d, column:%d, expected Identifier\n",parser->LLT->self->expr,*parser->LLT->self->ln_start,*parser->LLT->self->col_start);
+			exit(1);
+		}
+		jumpi->flag_name=malloc(sizeof(Token));
+		*jumpi->flag_name=*parser->LLT->self;
+		advanceParser(parser);
+		NodeWrapper* nw=malloc(sizeof(NodeWrapper));
+		nw->jump_if=jumpi;
+		return initNode(JUMP_IF_NODE,nw);
+
+	}
+	if(path=='L'){	// Flag Def
+		advanceParser(parser);
+		Flag* flag=malloc(sizeof(Flag));
+		if(*parser->LLT->self->type!=IDENTIFIER){
+			printf("Invalid token:%s at line:%d, column:%d, expected Identifier\n",parser->LLT->self->expr,*parser->LLT->self->ln_start,*parser->LLT->self->col_start);
+			exit(1);
+		}
+		flag->flag_name=malloc(sizeof(Token));
+		*flag->flag_name=*parser->LLT->self;
+		advanceParser(parser);
+		NodeWrapper* nw=malloc(sizeof(NodeWrapper));
+		nw->flag=flag;
+		return initNode(FLAG_NODE,nw);
 		
 	}
-	if(path=='f'){
-
-	}
-	if(path=='F'){
-
-	}
-	if(path=='i'){
-
-	}
-	if(path=='b'){
+	if(path=='b'){	// Binop
 		Node* left=parseTokens(parser, p1, ' ', ' ', NULL, 0, "");
 		int c=1;
 		while(c){
 			int p=0;
 			for(int i=0; i<tokc; i++){
 				if(*parser->LLT->self->type==tType[i]) p=1;
+				if(*parser->LLT->self->type==KEYWORD&&*parser->LLT->self->type==tType[i]){
+					if(strcmp(parser->LLT->self->expr,tExpr)!=0) p=0;
+				}
 			}
 			if(*parser->LLT->self->type==TEOF) return left;
 			if(!p) return left;
@@ -782,17 +1036,26 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 		return n;
 
 	}
-	if(path=='C'){
-		
+	if(path=='C'){	// Comp Expr
+		TokType* tts=malloc(sizeof(TokType)*6);
+		tts[0]=GT;
+		tts[1]=GTE;
+		tts[2]=EE;
+		tts[3]=NE;
+		tts[4]=LTE;
+		tts[5]=LT;
+		Node* node=parseTokens(parser, 'b', 'A', 'A', tts, 6, "");
+		free(tts);
+		return node;
 	}
-	if(path=='p'){
+	if(path=='p'){	// Power
 		TokType* kw=malloc(sizeof(TokType));
 		kw[0]=KEYWORD;
 		Node* expr=parseTokens(parser, 'b', 'c', 'f', kw, 1, "pow");
 		free(kw);
 		return expr;
 	}
-	if(path=='t'){
+	if(path=='t'){	// Term
 		TokType* tts=malloc(2*sizeof(TokType));
 		tts[0]=DIV;
 		tts[1]=MUL;
@@ -800,7 +1063,7 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 		free(tts);
 		return n;
 	}
-	if(path=='f'){
+	if(path=='f'){	// Factor
 		TokType tt=*parser->LLT->self->type;
 		if(tt==PLUS||tt==MINUS){
 			Unop* un=malloc(sizeof(Unop));
@@ -815,11 +1078,11 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 		}
 		return(parseTokens(parser, 'p', ' ', ' ', NULL, 0, ""));
 	}
-	if(path=='c'){
-		Node** args=malloc(1);
+	if(path=='c'){	// Call
 		int lenNodes=0;
 		Node* atom=parseTokens(parser, 'a',  ' ', ' ', NULL, 0, "");
 		if(*parser->LLT->self->type==LPAREN){
+			Node** args=malloc(1);
 			advanceParser(parser);
 			if(*parser->LLT->self->type==RPAREN){
 				advanceParser(parser);
@@ -854,8 +1117,38 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 		}
 		return atom;
 	}
-	if(path=='B'){
-
+	if(path=='B'){	// Block
+		TokType tt=*parser->LLT->self->type;
+		if(tt==LCURL){
+			advanceParser(parser);
+			CurlyBlock* cNode=malloc(sizeof(CurlyBlock));
+			cNode->len=malloc(sizeof(int));
+			*cNode->len=0;
+			cNode->nodes=malloc(1);
+			Node* expr=parseTokens(parser, 'P', ' ', ' ', NULL, 0, "");
+			cNode->nodes=realloc(cNode->nodes, ((*cNode->len)+2)*sizeof(struct Node*));
+			cNode->nodes[(*cNode->len)]=(struct Node *)expr;
+			*cNode->len+=1;
+			int p=1;
+			if(*parser->LLT->self->type==RCURL){
+				p=0;
+			}
+			while(p){
+				Node* expr=parseTokens(parser, 'P', ' ', ' ', NULL, 0, "");
+				cNode->nodes=realloc(cNode->nodes, ((*cNode->len)+2)*sizeof(struct Node*));
+				cNode->nodes[(*cNode->len)]=(struct Node *)expr;
+				*cNode->len+=1;
+				if(*parser->LLT->self->type==RCURL){
+					p=0;
+				}
+			}
+			advanceParser(parser);
+			NodeWrapper* nw=malloc(sizeof(NodeWrapper));
+			nw->curly_block=cNode;
+			return(initNode(CURLY_NODE, nw));
+		}
+		printf("Invalid token:%s at line:%d, column:%d, expected '{'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+		exit(1);
 	}
 	return NULL;
 	
@@ -884,14 +1177,15 @@ int main() {
 	printf("%s\n",str->ptr);
 	freeStrBuf(str);
 	freeTokens(toks);
-	Lexer* lex=initLexer("1+1.0\n->1 1\nlet jump aaaaa a90AAa Ak wd_wd w_09 _00");
+	Lexer* lex=initLexer("for(let a<-0->15:1){a;};while(true){let b=b+1;};::aaa;jump aaa; jump_if(1==1) aaa;");
 	printf("Helloo00o\n");
 	parseLexer(lex);
 	printf("Helloo00o\n");
 	printTokens(lex->toks);
-	Tokens* a=initTokenCollection();
-	appendToken(a, initToken(FLOAT,0,0,0,"1.0"));
-	Node* no=parseTokens(initParser(a), 'a', ' ', ' ', NULL, 0, "");
-	printToken(no->node->number->token);
+	Parser* par=initParser(lex->toks);
+
+	Node* no=parseTokens(par, 'P', ' ', ' ', NULL, 0, "isRoot");
+	printToken(par->ast->roots[0]->node->for_node->variable);
+	printToken(no->node->func_def->var_name);
 
 }
