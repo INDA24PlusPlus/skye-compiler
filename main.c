@@ -43,7 +43,7 @@ typedef enum {
 
 #define longestkw 10
 #define shortestkw 2
-#define numKw 19
+#define numKw 12	//19
 char* keywords[]={
 	"if", 		//if
 	"else", 	//ee
@@ -52,16 +52,16 @@ char* keywords[]={
 	"jump", 	//jp
 	"func", 	//fc
 	"not", 		//nt
-	"malloc",	//mc
-	"free",		//fe
-	"and", 		//ad
-	"or", 		//or
-	"xor", 		//xr
+	//"malloc",	//mc
+	//"free",		//fe
+	//"and", 		//ad
+	//"or", 		//or
+	//"xor", 		//xr
 	"pow",		//pw
 	"let",	 	//lt
 	"jump_depth",	//jh
-	"continue",	//ce
-	"return",	//rn
+	//"continue",	//ce
+	//"return",	//rn
     	"for",		//fr
     	"while"		//we
 };
