@@ -172,8 +172,84 @@ Token* initToken(TokType type, int idx_start, int col_start, int ln_start, char*
 	sprintf(ptr->expr,"%s",expr);
 	return ptr;
 }
+char* ttfe(TokType tt){
+	switch (tt) {
+		case IDENTIFIER:
+			return "IDENTIFIER";
+		case KEYWORD:
+			return "KEYWORD";
+		case PLUS:
+			return "PLUS";
+		case INCREMENT:
+			return "INCREMENT";
+		case MINUS:
+			return "MINUS";
+		case DECREMENT:
+			return "DECREMENT";
+		case MUL:
+			return "MUL";
+		case DIV:
+			return "DIV";
+		case INTEGER:
+			return "INTEGER";
+		case FLOAT:
+			return "FLOAT";
+		case LPAREN:
+			return "LPAREN";
+		case RPAREN:
+			return "RPAREN";
+		case LBRACKET:
+			return "LBRACKET";
+		case RBRACKET:
+			return "RBRACKET";
+		case LCURL:
+			return "LCURL";
+		case RCURL:
+			return "RCURL";
+		case FLAG:
+			return "FLAG";
+		case COMMA:
+			return "COMMA";
+		case COLON:
+			return "COLON";
+		case SEMICOLON:
+			return "SEMICOLON";
+		case DOT:
+			return "DOT";
+		case LARROW:
+			return "LARROW";
+		case RARROW:
+			return "RARROW";
+		case EQ:
+			return "EQ";
+		case EE:
+			return "EE";
+		case GT:
+			return "GT";
+		case GTE:
+			return "GTE";
+		case LT:
+			return "LT";
+		case LTE:
+			return "LTE";
+		case NE:
+			return "NE";
+		case AND:
+			return "AND";
+		case OR:
+			return "OR";
+		case XOR:
+			return "XOR";
+		case NOT:
+			return "NOT";
+		case NEWLINE:
+			return "NEWLINE";
+		case TEOF:
+			return "TEOF";
+	}
+}
 void printToken(Token* ptr){
-	printf("[Type:%d, Val:%s; Line:%d, Column:%d]",*ptr->type,ptr->expr,*ptr->ln_start,*ptr->col_start);
+	printf("[Type:%s, Val:'%s'; Line:%d, Column:%d]",ttfe(*ptr->type),ptr->expr,*ptr->ln_start,*ptr->col_start);
 }
 typedef struct{
 	Token** tokens;
@@ -310,7 +386,6 @@ void parseLexer(Lexer* lexer){
 	int c=1;
 	int start,ln,col;
 	while(c){
-		printf("%c",*lexer->current);
 		switch(*lexer->current){
 			case '\n':
 				*lexer->line=*lexer->line+1;
@@ -557,6 +632,7 @@ typedef struct{
 } IfSet;
 typedef struct{
 	IfSet** cases;
+	int* casenum;
 	struct Node* elsecase;
 } IfNode;
 typedef struct{
@@ -612,6 +688,80 @@ typedef struct{
 	NodeWrapper* node;
 	NodeType* type;
 } Node;
+void printNode(Node* node){
+	switch (*node->type) {
+		case NUMBER_NODE:
+			printf("{NumberNode|Token:");
+			printToken(node->node->number->token);
+			printf("}");
+			break;
+		case CURLY_NODE:
+			printf("{CurlyNode|NumNodes:%d|Nodes:(",*node->node->curly_block->len);
+			for(int i=0; i<*node->node->curly_block->len;i++){
+				if(i!=0) printf(",");
+				printNode((Node*)node->node->curly_block->nodes[i]);
+			}
+			printf(")}");
+			break;
+		case TYPE_NODE:
+			break;
+		case TYPECHAIN_NODE:
+			break;
+		case BIN_OP_NODE:
+			printf("{BinopNode|Left:");
+			printNode((Node*)node->node->binop->left);
+			printf("|Token:");
+			printToken(node->node->binop->token);
+			printf("|Right:");
+			printNode((Node*)node->node->binop->right);
+			printf("}");
+			break;
+		case UN_OP_NODE:
+			printf("{UnopNode|Token:");
+			printToken(node->node->unop->token);
+			printf("|Node:");
+			printNode((Node*)node->node->unop->node);
+			printf("}");			
+			break;
+		case VAR_ASSIGN_NODE:
+			printf("{VarAssignNode|Node:");
+			printNode((Node*)node->node->var_assign->node);
+			printf("|Token:");
+			printToken(node->node->var_assign->token);
+			printf("}");
+			break;
+		case VAR_ACCESS_NODE:
+			printf("{VarAccessNode|Token:");
+			printToken(node->node->var_access->token);
+			printf("}");
+			break;
+		case IF_NODE:
+			break;
+		case FOR_NODE:
+			break;
+		case WHILE_NODE:
+			break;
+		case FLAG_NODE:
+			printf("{FlagNode|Flag Name:");
+			printToken(node->node->flag->flag_name);
+			printf("}");
+			break;
+		case JUMP_NODE:
+			printf("{JumpNode|Flag Name:");
+			printToken(node->node->jump->flag_name);
+			printf("}");
+			break;
+		case JUMP_IF_NODE:
+			break;
+		case FUNC_DEF_NODE:
+			break;
+		case CALL_NODE:
+			break;
+		default:
+			break;
+	
+	}
+}
 Node* initNode(NodeType type, NodeWrapper* node){
 	Node* n=malloc(sizeof(Node));
 	n->type=malloc(sizeof(NodeType));
@@ -934,6 +1084,8 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 		IfNode* in=malloc(sizeof(IfNode));
 		in->cases=cases;
 		in->elsecase=(struct Node*)elsecase;
+		in->casenum=malloc(sizeof(int));
+		*in->casenum=nSets;
 		NodeWrapper* nw=malloc(sizeof(NodeWrapper));
 		nw->if_node=in;
 		return initNode(IF_NODE, nw);
@@ -1177,7 +1329,7 @@ int main() {
 	printf("%s\n",str->ptr);
 	freeStrBuf(str);
 	freeTokens(toks);
-	Lexer* lex=initLexer("for(let a<-0->15:1){a;};while(true){let b=b+1;};::aaa;jump aaa; jump_if(1==1) aaa;");
+	Lexer* lex=initLexer("2*(1+1);\nfor(let a<-0->15:1){\na;\n};\nwhile(true){\nlet b=b+1;\n};\n::aaa;\njump aaa;\njump_if(1==1) aaa;");
 	printf("Helloo00o\n");
 	parseLexer(lex);
 	printf("Helloo00o\n");
@@ -1185,7 +1337,6 @@ int main() {
 	Parser* par=initParser(lex->toks);
 
 	Node* no=parseTokens(par, 'P', ' ', ' ', NULL, 0, "isRoot");
-	printToken(par->ast->roots[0]->node->for_node->variable);
-	printToken(no->node->func_def->var_name);
+	printNode(par->ast->roots[0]);
 
 }
