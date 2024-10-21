@@ -1,4 +1,7 @@
+#include <math.h>
 #include <stddef.h>
+#include <dirent.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,7 +46,7 @@ typedef enum {
 
 #define longestkw 10
 #define shortestkw 2
-#define numKw 12	//19
+#define numKw 17	//19
 char* keywords[]={
 	"if", 		//if
 	"else", 	//ee
@@ -60,10 +63,13 @@ char* keywords[]={
 	"pow",		//pw
 	"let",	 	//lt
 	"jump_depth",	//jh
-	//"continue",	//ce
-	//"return",	//rn
+	"continue",	//ce
+	"return",	//rn
     	"for",		//fr
-    	"while"		//we
+    	"while",	//we
+	"print",	//
+	"println",	//
+	"prInt",	//
 };
 
 typedef struct {
@@ -986,7 +992,7 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 		advanceParser(parser);
 		fn->step=(struct Node*)parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
 		if(*parser->LLT->self->type!=RPAREN){
-			printf("Invalid token:%s at line:%d, column:%d, expected ')'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			printf("Invalid token:%s at line:%d, column#define MAX 255:%d, expected ')'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
 			exit(1);
 		}
 		advanceParser(parser);
@@ -1305,38 +1311,361 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 	return NULL;
 	
 }
+typedef struct{
+	Token* name;
+	Node* value;
+	int* isConstant;
+	int* evalsToFloat;
+} CTimeVariable;
+
+CTimeVariable* initVar(Node* node){
+	CTimeVariable* ctv=malloc(sizeof(CTimeVariable));
+	ctv->evalsToFloat=malloc(1);
+	ctv->isConstant=malloc(1);
+	ctv->name=node->node->var_assign->token;
+	ctv->value=(Node*)node->node->var_assign->node;
+	return ctv;
+}
+typedef struct{
+	Token* name;
+	Node* flag;
+} CTimeFlag;
+CTimeFlag* initFlag(Node* node){
+	CTimeFlag* ctf=malloc(sizeof(CTimeFlag));
+	ctf->name=node->node->flag->flag_name;
+	ctf->flag=node;
+	return ctf;
+
+}
+typedef struct{
+	CTimeVariable** vars;
+	int* nargs;
+	CTimeFlag** flags;
+	int* nflags;
+	int* dpth;
+	int* nILVarNames;
+} CTimeContext;
+CTimeContext* goDeeper(CTimeContext* ctx){
+	CTimeContext* c=malloc(sizeof(CTimeContext));
+	c->vars=malloc(1);
+	c->flags=malloc(1);
+	c->nargs=malloc(sizeof(int));
+	*c->nargs=0;
+	c->nflags=malloc(sizeof(int));
+	*c->nflags=0;
+	c->dpth=malloc(sizeof(int));
+	*c->dpth=ctx==NULL?0:*ctx->dpth+1;
+	c->nILVarNames=malloc(sizeof(int));
+	*c->nILVarNames=ctx==NULL?0:*ctx->nILVarNames;
+	return c;	
+}
+int evalsToFloat(Node* node){
+	if(*node->type==NUMBER_NODE) return *node->node->number->token->type==FLOAT;
+	if(*node->type==UN_OP_NODE) return evalsToFloat((Node*)node->node->unop->node);
+	
+	if(*node->type==BIN_OP_NODE){
+		return (evalsToFloat((Node*)node->node->binop->left)||evalsToFloat((Node*)node->node->binop->right));
+	}
+
+	return 0;
+}
+int isConstant(Node* node){
+	return 1;	
+}
+char* constantFold(Node* node){
+	return "";	
+}
+
+void addVar(CTimeContext* ctx, Node* node){
+	ctx->vars=realloc(ctx->vars,(*ctx->nargs+2)*sizeof(CTimeVariable*));
+	ctx->vars[*ctx->nargs]=initVar(node);
+	*ctx->nargs+=1;
+}
+void addFlag(CTimeContext* ctx, Node* node){
+	ctx->flags=realloc(ctx->flags,(*ctx->nflags+2)*sizeof(CTimeFlag*));
+	ctx->flags[*ctx->nflags]=initFlag(node);
+	*ctx->nflags+=1;
+}
+typedef struct{
+	char* IL;
+	char* varName;
+} CompilerRetValue;
+
+char* getILFlagNames(CTimeContext* ctx){
+	char* a="abcdefghijklmno";
+	int p=*ctx->nILVarNames;
+	char* retval=malloc(7);
+	retval[6]='\0';
+	retval[0]='@';
+	for(int i=5; i>0;i--){
+		retval[i]=a[p%16];
+		p=(int)floor((double)p/16.0);
+	}
+	*ctx->nILVarNames+=1;
+	return retval;
+}
+
+char* getILVarNames(CTimeContext* ctx){
+	char* a="abcdefghijklmno";
+	int p=*ctx->nILVarNames;
+	char* retval=malloc(7);
+	retval[6]='\0';
+	retval[0]='%';
+	for(int i=5; i>0;i--){
+		retval[i]=a[p%16];
+		p=(int)floor((double)p/16.0);
+	}
+	*ctx->nILVarNames+=1;
+	return retval;
+}
+char* BinOpTtHelper(Token* tok,int isFloats){
+	TokType tt=*tok->type;
+	return 
+			(tt==DIV?"div":
+			(tt==MUL?"mul":
+			 (tt==PLUS?"add":
+			  (tt==MINUS?"sub":
+			   (tt==AND?"and":
+			    (tt==OR?"or":
+			     (tt==XOR?"xor":
+			      (tt==EE?(isFloats?"ceqd":"ceqw"):
+			       (tt==NE?(isFloats?"cned":"cnew"):
+				(tt==LT?(isFloats?"cltd":"csltw"):
+				 (tt==LTE?(isFloats?"cled":"cslew"):
+				  (tt==GT?(isFloats?"cgtd":"csgtw"):
+				   (tt==GTE?(isFloats?"cged":"csgew"):"-------")
+				  )
+				 )
+				)
+			       )
+			      )
+			     )
+			    )
+			   )
+			  )
+			 )
+			)
+			);
+}
+CompilerRetValue* IlFromNode(Node* node, CTimeContext* ctx){
+	switch (*node->type) {
+		case NUMBER_NODE:
+			if(!evalsToFloat(node)){
+				CompilerRetValue* nV=malloc(sizeof(CompilerRetValue));
+				nV->varName=node->node->number->token->expr;
+				nV->IL="";
+				return nV;
+			}
+			CompilerRetValue* nV=malloc(sizeof(CompilerRetValue));
+			nV->varName=malloc(strLen(node->node->number->token->expr)+sizeof("d_"));
+			sprintf(nV->varName,"d_%s",node->node->number->token->expr);
+			nV->IL="";
+			return nV;
+			break;
+		case CURLY_NODE:
+			StrBuf* cA=initStrBuf();
+			printf("{CurlyNode|NumNodes:%d|Nodes:(",*node->node->curly_block->len);
+			for(int i=0; i<*node->node->curly_block->len;i++){
+				if(i!=0) printf(",");
+				printNode((Node*)node->node->curly_block->nodes[i]);
+			}
+			printf(")}");
+			break;
+		case TYPE_NODE:
+			break;
+		case TYPECHAIN_NODE:
+			break;
+		case BIN_OP_NODE:
+			CompilerRetValue* left=IlFromNode((Node*)node->node->binop->left, ctx);
+			CompilerRetValue* right=IlFromNode((Node*)node->node->binop->right, ctx);
+			CompilerRetValue* bnV=malloc(sizeof(CompilerRetValue));
+			bnV->varName=getILVarNames(ctx);
+			bnV->IL = malloc(sizeof(" =  , \n")+6+5+1+strLen(left->IL)+strLen(left->varName)+strLen(right->IL)+strLen(right->varName));
+			TokType tt=*node->node->binop->token->type;
+			sprintf(bnV->IL,"%s%s%s =%s %s %s, %s\n",left->IL,right->IL,bnV->varName,(tt!=EE&&tt!=NE&&tt!=LTE&&tt!=LT&&tt!=GTE&&tt!=GT)&&(evalsToFloat((Node*)node->node->binop->left)||evalsToFloat((Node*)node->node->binop->right))?"d":"w",BinOpTtHelper(node->node->binop->token,evalsToFloat(node)),left->varName,right->varName);
+			return bnV;	
+			break;
+		case UN_OP_NODE:
+			if(*node->node->unop->token->type==MINUS){
+				if(*((Node*)node->node->unop->node)->type==UN_OP_NODE){
+					if(*((Node*)node->node->unop->node)->node->unop->token->type==MINUS){
+						return IlFromNode((Node*)((Node*)node->node->unop->node)->node->unop->node,ctx);
+					}
+				}
+				if(*((Node*)node->node->unop->node)->type==NUMBER_NODE){
+					if(*((Node*)node->node->unop->node)->node->number->token->type==FLOAT){
+						CompilerRetValue* unV=malloc(sizeof(CompilerRetValue));
+						unV->varName=malloc(strLen(((Node*)node->node->unop->node)->node->number->token->expr)+sizeof("d_-"));
+						sprintf(unV->varName,"d_-%s",((Node*)node->node->unop->node)->node->number->token->expr);
+						unV->IL="";
+						return unV;
+					}
+					CompilerRetValue* unV=malloc(sizeof(CompilerRetValue));
+					unV->varName=malloc(strLen(((Node*)node->node->unop->node)->node->number->token->expr)+sizeof("-"));
+					sprintf(unV->varName,"-%s",((Node*)node->node->unop->node)->node->number->token->expr);
+					unV->IL="";
+					return unV;
+
+				}
+				CompilerRetValue* prev=IlFromNode((Node*)node->node->unop->node, ctx);
+				CompilerRetValue* unV=malloc(sizeof(CompilerRetValue));
+				unV->varName=getILVarNames(ctx);
+				unV->IL= malloc(sizeof(" = sub 0, \n")+6+1+strLen(prev->IL)+strLen(prev->varName));
+				sprintf(unV->IL,"%s%s =%s sub 0, %s\n",prev->IL,unV->varName,evalsToFloat((Node*)node->node->unop->node)?"d":"w",prev->varName);
+				return unV;
+
+			}
+			if(*node->node->unop->token->type==NOT){
+				if(*((Node*)node->node->unop->node)->type==UN_OP_NODE){
+					if(*((Node*)node->node->unop->node)->node->unop->token->type==NOT){
+						return IlFromNode((Node*)((Node*)node->node->unop->node)->node->unop->node,ctx);
+					}
+				}
+				CompilerRetValue* prev=IlFromNode((Node*)node->node->unop->node, ctx);
+				CompilerRetValue* unV=malloc(sizeof(CompilerRetValue));
+				unV->varName=getILVarNames(ctx);
+				unV->IL= malloc(sizeof(" = not \n")+6+1+strLen(prev->IL)+strLen(prev->varName));
+				sprintf(unV->IL,"%s%s =%s not %s\n",prev->IL,unV->varName,evalsToFloat((Node*)node->node->unop->node)?"d":"w",prev->varName);
+				return unV;
+
+			}		
+			break;
+		case VAR_ASSIGN_NODE:
+			CompilerRetValue* vasExpr=IlFromNode((Node*)node->node->var_assign->node,ctx);
+			addVar(ctx, node);
+			CompilerRetValue* vasV=malloc(sizeof(CompilerRetValue));
+			vasV->varName=malloc(sizeof("%")+strLen(node->node->var_assign->token->expr));
+			sprintf(vasV->varName+1,"%s",node->node->var_assign->token->expr);
+			vasV->varName[0]='%';
+			vasV->IL=malloc(sizeof("= copy \n")+1+strLen(vasV->varName)+strLen(vasExpr->IL)+strLen(vasExpr->varName));
+			int q=1;
+			if(*((Node*)node->node->var_assign->node)->type==BIN_OP_NODE){
+				TokType tt=*((Node*)node->node->var_assign->node)->node->binop->token->type;
+				q=(tt!=NE&&tt!=EE&&tt!=GTE&&tt!=GT&&tt!=LT&&tt!=LTE);
+			}
+			sprintf(vasV->IL,"%s%s=%s copy %s\n", vasExpr->IL,vasV->varName,q&&evalsToFloat((Node*)node->node->var_assign->node)?"d":"w",vasExpr->varName);
+			return vasV;
+			break;
+		case VAR_ACCESS_NODE:
+			CompilerRetValue* vacV=malloc(sizeof(CompilerRetValue));
+			vacV->varName=malloc(sizeof("%")+strLen(node->node->var_access->token->expr));
+			sprintf(vacV->varName+1, "%s", node->node->var_access->token->expr);
+			vacV->varName[0]='%';
+			vacV->IL="";
+			return vacV;
+			printf("{VarAccessNode|Token:");
+			printToken(node->node->var_access->token);
+			printf("}");
+			break;
+		case IF_NODE:
+			break;
+		case FOR_NODE:
+			break;
+		case WHILE_NODE:
+			break;
+		case FLAG_NODE:
+			CompilerRetValue* fV=malloc(sizeof(CompilerRetValue));
+			fV->varName="";
+			fV->IL=malloc(sizeof("@\n")+strLen(node->node->flag->flag_name->expr));
+			sprintf(fV->IL,"@%s\n",node->node->flag->flag_name->expr);
+			addFlag(ctx, node);
+			return fV;
+			break;
+		case JUMP_NODE:
+			printf("{JumpNode|Flag Name:");
+			printToken(node->node->jump->flag_name);
+			printf("}");
+			break;
+		case JUMP_IF_NODE:
+			CompilerRetValue* jiCon=IlFromNode((Node*)node->node->jump_if->condition,ctx);
+			*ctx->dpth+=1;
+			CompilerRetValue* jiV=malloc(sizeof(CompilerRetValue));
+			jiV->varName=getILFlagNames(ctx);
+			jiV->IL=malloc(sizeof("jnz , @, \n\n")+strLen(jiCon->varName)+strLen(jiCon->IL)+strLen(jiV->varName)*2+strLen(node->node->jump_if->flag_name->expr));
+			sprintf(jiV->IL,"%sjnz %s, @%s, %s\n%s\n", jiCon->IL, jiCon->varName, node->node->jump_if->flag_name->expr, jiV->varName, jiV->varName);
+			return jiV;
+			break;
+		case FUNC_DEF_NODE:
+			break;
+		case CALL_NODE:
+			break;
+		default:
+			break;
+	
+	}
+	return NULL;
+}
+char* CompileAST(Parser* parser){
+	StrBuf* strb=initStrBuf();
+	CTimeContext* ctx=goDeeper(NULL);
+	writeChars(strb, "export function w $main() {\n@start\n");
+	for(int i=0;i<*parser->ast->len; i++){
+		writeChars(strb, IlFromNode(parser->ast->roots[i], ctx)->IL);
+	}
+	writeChars(strb, "call $printf(l $fmt, ...,w \%b)\nret 0\n}\ndata $fmt = { b \"\%d\\n\", b 0 }");
 
 
-int main() {
-	printf("Hellooo\n");
-	StrBuf* str=initStrBuf();
-
-	printf("Hellooo\n");
-	printf("Hellooo\n");
-	writeChar(str,'H');
-	printf("Hellooo\n");
-	printf("%d\n",matchKw("jump_depth"));
-	printf("%d\n",matchKw("jump_deptt"));
-
-	Token* tok=initToken(LCURL, 0, 1, 1, "aaaaa");
-	Tokens* toks=initTokenCollection();
-	printf("Helloo00o\n");
-	appendToken(toks, tok);
-	printf("%ld||\n",*toks->len);
-	printf("%d\n",*(toks->tokens[0]->type));	
-	printf("%d\n%s\n",LCURL,str->ptr);
-	writeChars(str,"ello World!");
-	printf("%s\n",str->ptr);
-	freeStrBuf(str);
-	freeTokens(toks);
-	Lexer* lex=initLexer("2*(1+1);\nfor(let a<-0->15:1){\na;\n};\nwhile(true){\nlet b=b+1;\n};\n::aaa;\njump aaa;\njump_if(1==1) aaa;");
-	printf("Helloo00o\n");
+	return strb->ptr;
+}
+int main(int argc, char **argv) {
+	FILE* progIn;
+	StrBuf* prog=initStrBuf();
+	progIn=fopen(argv[1], "r");
+	char ch;
+	while((ch = fgetc(progIn)) != EOF){
+		writeChar(prog, ch);
+	}
+	fclose(progIn);
+	Lexer* lex=initLexer(prog->ptr);
 	parseLexer(lex);
-	printf("Helloo00o\n");
 	printTokens(lex->toks);
 	Parser* par=initParser(lex->toks);
+	parseTokens(par, 'P', ' ', ' ', NULL, 0, "isRoot");
+	char* IL=CompileAST(par);
+	FILE* progOut;
+	int p=0;
+	for(int i=0; i<strLen(argv[1]); i++){
+		if(argv[1][i]=='.') p=i;
+	}
+	char* outStr=malloc(p+sizeof(".o"));
+	for(int i=0; i<p;i++){
+		outStr[i]=argv[1][i];
+	}
+	outStr[p+2]='\0';
+	outStr[p]='.';
+	outStr[p+1]='o';
+	progOut = fopen(outStr, "w");
+	fprintf(progOut,"%s", IL);
+	printf("%s\n", IL);
+	fclose(progOut);
 
-	Node* no=parseTokens(par, 'P', ' ', ' ', NULL, 0, "isRoot");
-	printNode(par->ast->roots[0]);
+	char wd[512];
+	wd[511] = '\0';
+	if(getcwd(wd, 511) == NULL) {
+		printf ("Can not get current working directory\n");
+	}
+	char* outStr2=malloc(p+sizeof(".s"));
+	for(int i=0; i<p;i++){
+		outStr2[i]=argv[1][i];
+	}
+	outStr2[p+2]='\0';
+	outStr2[p]='.';
+	outStr2[p+1]='s';
 
+	char* outStr3=malloc(p+sizeof(""));
+	for(int i=0; i<p;i++){
+		outStr3[i]=argv[1][i];
+	}
+	outStr3[p]='\0';
+	char* command1=malloc(sizeof("cd ")+strLen(wd));
+	sprintf(command1, "cd %s", wd);
+	system(command1);
+	char* command2=malloc(sizeof("qbe  -o ")+strLen(outStr)+strLen(outStr2));
+	sprintf(command2, "qbe %s -o %s", outStr, outStr2);
+	char* command3=malloc(sizeof("cc  -o ")+strLen(outStr2)+strLen(outStr3));
+	sprintf(command3, "cc %s -o %s", outStr2, outStr3);
+	system(command2);
+	system(command3);
+	return 0;
+	//printNode(par->ast->roots[1]);
 }

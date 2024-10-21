@@ -1,0 +1,19 @@
+export function w $main() {
+@start
+%a=w copy 0
+%b=w copy 1
+%c=w copy 5
+@loop
+%aaaaa =w add %b, %a
+%b=w copy %aaaaa
+%aaaab =w sub %b, %a
+%a=w copy %aaaab
+%aaaac =w sub %c, 1
+%c=w copy %aaaac
+%aaaad =w csgtw %c, 0
+jnz %aaaad, @loop, @aaaae
+@aaaae
+call $printf(l $fmt, ...,w %b)
+ret 0
+}
+data $fmt = { b "%d\n", b 0 }
