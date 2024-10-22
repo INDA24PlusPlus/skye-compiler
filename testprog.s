@@ -3,21 +3,28 @@
 main:
 	pushq %rbp
 	movq %rsp, %rbp
-	movl $0, %edx
-	movl $1, %eax
-	movl $10, %ecx
+	subq $8, %rsp
+	pushq %rbx
+	pushq %r12
+	pushq %r13
+	movl $0, %r12d
+	movl $1, %ebx
+	movl $10, %r13d
 .Lbb2:
-	addl %edx, %eax
-	negl %edx
-	addl %eax, %edx
-	subl $1, %ecx
-	cmpl $0, %ecx
-	jg .Lbb2
-	movl %eax, %esi
-	leaq fmt(%rip), %rdi
+	addl %r12d, %ebx
+	negl %r12d
+	addl %ebx, %r12d
+	movl %r12d, %esi
+	leaq fmtw(%rip), %rdi
 	movl $0, %eax
 	callq printf
+	subl $1, %r13d
+	cmpl $0, %r13d
+	jg .Lbb2
 	movl $0, %eax
+	popq %r13
+	popq %r12
+	popq %rbx
 	leave
 	ret
 .type main, @function
@@ -26,8 +33,15 @@ main:
 
 .data
 .balign 8
-fmt:
+fmtw:
 	.ascii "%d\n"
+	.byte 0
+/* end data */
+
+.data
+.balign 8
+fmtd:
+	.ascii "%lf\n"
 	.byte 0
 /* end data */
 

@@ -46,7 +46,7 @@ typedef enum {
 
 #define longestkw 10
 #define shortestkw 2
-#define numKw 17	//19
+#define numKw 16	//21
 char* keywords[]={
 	"if", 		//if
 	"else", 	//ee
@@ -56,10 +56,10 @@ char* keywords[]={
 	"func", 	//fc
 	"not", 		//nt
 	//"malloc",	//mc
-	//"free",		//fe
-	//"and", 		//ad
-	//"or", 		//or
-	//"xor", 		//xr
+	//"free",	//fe
+	//"and", 	//ad
+	//"or", 	//or
+	//"xor", 	//xr
 	"pow",		//pw
 	"let",	 	//lt
 	"jump_depth",	//jh
@@ -67,9 +67,8 @@ char* keywords[]={
 	"return",	//rn
     	"for",		//fr
     	"while",	//we
-	"print",	//
-	"println",	//
-	"prInt",	//
+	"print",	//pt
+	"println"	//pn
 };
 
 typedef struct {
@@ -608,7 +607,8 @@ typedef enum {
 	JUMP_NODE,
 	JUMP_IF_NODE,
 	FUNC_DEF_NODE,
-	CALL_NODE
+	CALL_NODE,
+	PRINT_NODE
 } NodeType;
 typedef struct{Token* token;} Number;
 typedef struct{
@@ -641,6 +641,9 @@ typedef struct{
 	int* casenum;
 	struct Node* elsecase;
 } IfNode;
+typedef struct{
+	struct Node* expr;
+} PrintNode;
 typedef struct{
 	struct Node* condition;
 	struct Node* body;
@@ -689,6 +692,7 @@ typedef union{
 	JumpIf* jump_if;
 	FuncDef* func_def;
 	Call* call;
+	PrintNode* print;
 } NodeWrapper;
 typedef struct{
 	NodeWrapper* node;
@@ -813,7 +817,7 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 	if(path=='P'){	// Parse
 		Node* node=parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
 		if((*parser->LLT->self->type)!=SEMICOLON){
-			printf("Invalid token:%s at line:%d, column:%d, expected ';'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
+			printf("P:Invalid token:%s at line:%d, column:%d, expected ';'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
 			exit(1);
 		}
 		advanceParser(parser);
@@ -869,7 +873,7 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 			else if(strcmp("func", parser->LLT->self->expr)==0){
 				return parseTokens(parser, 'D', ' ', ' ', NULL, 0, "");
 			}
-
+			
 		}
 		printf("Invalid token:%s at line:%d, column:%d\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
 		exit(1);
@@ -921,6 +925,11 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 				Node* node=parseTokens(parser, 'j', ' ', ' ', NULL, 0, "");
 				return node;
 			}
+			else if(strcmp("print", parser->LLT->self->expr)==0){
+				Node* node=parseTokens(parser, 'R', ' ', ' ', NULL, 0, "");
+				return node;
+			}
+
 			
 		}
 		TokType* tts=malloc(sizeof(TokType)*3);
@@ -1049,6 +1058,23 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 		NodeWrapper* nw=malloc(sizeof(NodeWrapper));
 		nw->func_def=fd;
 		return initNode(FUNC_DEF_NODE, nw);
+	}
+	if(path=='R'){
+		advanceParser(parser);
+		if(*parser->LLT->self->type!=LPAREN){
+			exit(1);
+		}
+		advanceParser(parser);
+		Node* body=parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
+		if(*parser->LLT->self->type!=RPAREN){
+			exit(1);
+		}
+		advanceParser(parser);
+		PrintNode* pn=malloc(sizeof(PrintNode));
+		pn->expr=(struct Node*)body;
+		NodeWrapper* nw=malloc(sizeof(NodeWrapper));
+		nw->print=pn;
+		return initNode(PRINT_NODE, nw);
 	}
 	if(path=='i'){	// If Expr
 		IfSet** cases=malloc(1);
@@ -1464,16 +1490,26 @@ CompilerRetValue* IlFromNode(Node* node, CTimeContext* ctx){
 			break;
 		case CURLY_NODE:
 			StrBuf* cA=initStrBuf();
-			printf("{CurlyNode|NumNodes:%d|Nodes:(",*node->node->curly_block->len);
 			for(int i=0; i<*node->node->curly_block->len;i++){
-				if(i!=0) printf(",");
-				printNode((Node*)node->node->curly_block->nodes[i]);
+				writeChars(cA, IlFromNode((Node*)node->node->curly_block->nodes[i], ctx)->IL);
 			}
-			printf(")}");
+			CompilerRetValue* cnV=malloc(sizeof(CompilerRetValue));
+			cnV->varName="";
+			cnV->IL=cA->ptr;
 			break;
 		case TYPE_NODE:
 			break;
 		case TYPECHAIN_NODE:
+			break;
+		case PRINT_NODE:
+			CompilerRetValue* pnExp=IlFromNode((Node*)node->node->print->expr,ctx);
+			char* pnVar=getILVarNames(ctx);
+			int etf=evalsToFloat((Node*)node->node->print->expr);
+			CompilerRetValue* pnV=malloc(sizeof(CompilerRetValue));
+			pnV->IL=malloc(sizeof("= copy \ncall $printf(l $, ..., )\n")+2+4+strLen(pnVar)*2+strLen(pnExp->varName)+strLen(pnExp->IL));			
+			sprintf(pnV->IL,"%s%s=%s copy %s\ncall $printf(l $%s, ...,%s %s)\n",pnExp->IL,pnVar,etf?"d":"w",pnExp->varName,etf?"fmtd":"fmtw",etf?"d":"w",pnVar);
+			pnV->varName="";
+			return pnV;
 			break;
 		case BIN_OP_NODE:
 			CompilerRetValue* left=IlFromNode((Node*)node->node->binop->left, ctx);
@@ -1560,6 +1596,12 @@ CompilerRetValue* IlFromNode(Node* node, CTimeContext* ctx){
 		case IF_NODE:
 			break;
 		case FOR_NODE:
+			StrBuf* flBuf=initStrBuf();
+			char* startFlag=getILFlagNames(ctx);
+			char* endFlag=getILFlagNames(ctx);
+
+			char* topStr=malloc(sizeof(" = copy \n = copy \n = copy \n"));
+			CompilerRetValue* flBody=IlFromNode((Node*)node->node->for_node->body, ctx);
 			break;
 		case WHILE_NODE:
 			break;
@@ -1602,7 +1644,7 @@ char* CompileAST(Parser* parser){
 	for(int i=0;i<*parser->ast->len; i++){
 		writeChars(strb, IlFromNode(parser->ast->roots[i], ctx)->IL);
 	}
-	writeChars(strb, "call $printf(l $fmt, ...,w \%b)\nret 0\n}\ndata $fmt = { b \"\%d\\n\", b 0 }");
+	writeChars(strb, "ret 0\n}\ndata $fmtw = { b \"\%d\\n\", b 0 }\ndata $fmtd = { b \"\%lf\\n\", b 0 }");
 
 
 	return strb->ptr;

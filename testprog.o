@@ -8,12 +8,14 @@ export function w $main() {
 %b=w copy %aaaaa
 %aaaab =w sub %b, %a
 %a=w copy %aaaab
-%aaaac =w sub %c, 1
-%c=w copy %aaaac
-%aaaad =w csgtw %c, 0
-jnz %aaaad, @loop, @aaaae
-@aaaae
-call $printf(l $fmt, ...,w %b)
+%aaaac=w copy %a
+call $printf(l $fmtw, ...,w %aaaac)
+%aaaad =w sub %c, 1
+%c=w copy %aaaad
+%aaaae =w csgtw %c, 0
+jnz %aaaae, @loop, @aaaaf
+@aaaaf
 ret 0
 }
-data $fmt = { b "%d\n", b 0 }
+data $fmtw = { b "%d\n", b 0 }
+data $fmtd = { b "%lf\n", b 0 }
