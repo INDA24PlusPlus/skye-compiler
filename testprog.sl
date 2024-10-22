@@ -1,9 +1,4 @@
-let a<-0;
-let b<-1;
-let c<-10;
-::loop;
-let b<-b+a;
-let a<-b-a;
-print(a);
-let c<-c-1;
-jump_if(c>0) loop;
+
+for(let i<-0->16:let c<-(let a<-1+(let b<-0))){
+	print(let b<-(let a<-a+b)-b);
+}

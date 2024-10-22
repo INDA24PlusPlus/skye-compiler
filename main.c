@@ -559,7 +559,6 @@ void parseLexer(Lexer* lexer){
 				break;
 		}
 	}
-	printf("\n");
 }
 
 typedef struct{
@@ -816,11 +815,12 @@ void advanceParser(Parser* parser){
 Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, int tokc, char* tExpr){
 	if(path=='P'){	// Parse
 		Node* node=parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
-		if((*parser->LLT->self->type)!=SEMICOLON){
+		if((*parser->LLT->self->type)!=SEMICOLON&&*((LinkedListToken *)parser->LLT->prev)->self->type!=RCURL){
+			
 			printf("P:Invalid token:%s at line:%d, column:%d, expected ';'\n",parser->LLT->self->expr,*parser->LLT->self->ln_start, *parser->LLT->self->col_start);
 			exit(1);
 		}
-		advanceParser(parser);
+		if(*parser->LLT->self->type==SEMICOLON)advanceParser(parser);
 		if(strcmp(tExpr,"isRoot")==0){
 			AddRoot(parser->ast, node);
 			if((*parser->LLT->self->type)!=TEOF){
@@ -1362,18 +1362,19 @@ CTimeFlag* initFlag(Node* node){
 }
 typedef struct{
 	CTimeVariable** vars;
-	int* nargs;
+	int* nvars;
 	CTimeFlag** flags;
 	int* nflags;
 	int* dpth;
 	int* nILVarNames;
 } CTimeContext;
+
 CTimeContext* goDeeper(CTimeContext* ctx){
 	CTimeContext* c=malloc(sizeof(CTimeContext));
 	c->vars=malloc(1);
 	c->flags=malloc(1);
-	c->nargs=malloc(sizeof(int));
-	*c->nargs=0;
+	c->nvars=malloc(sizeof(int));
+	*c->nvars=0;
 	c->nflags=malloc(sizeof(int));
 	*c->nflags=0;
 	c->dpth=malloc(sizeof(int));
@@ -1400,15 +1401,28 @@ char* constantFold(Node* node){
 }
 
 void addVar(CTimeContext* ctx, Node* node){
-	ctx->vars=realloc(ctx->vars,(*ctx->nargs+2)*sizeof(CTimeVariable*));
-	ctx->vars[*ctx->nargs]=initVar(node);
-	*ctx->nargs+=1;
+	ctx->vars=realloc(ctx->vars,(*ctx->nvars+2)*sizeof(CTimeVariable*));
+	ctx->vars[*ctx->nvars]=initVar(node);
+	*ctx->nvars+=1;
 }
 void addFlag(CTimeContext* ctx, Node* node){
 	ctx->flags=realloc(ctx->flags,(*ctx->nflags+2)*sizeof(CTimeFlag*));
 	ctx->flags[*ctx->nflags]=initFlag(node);
 	*ctx->nflags+=1;
 }
+int flagExists(CTimeContext* ctx, Token* flagname){
+	for(int i=0; i<*ctx->nflags;i++){
+		if(strcmp(ctx->flags[i]->name->expr,flagname->expr)==0) return 1;
+	}
+	return 0;
+}
+int varExists(CTimeContext* ctx, Token* varname){
+	for(int i=0; i<*ctx->nvars;i++){
+		if(strcmp(ctx->vars[i]->name->expr,varname->expr)==0) return 1;
+	}
+	return 0;
+}
+
 typedef struct{
 	char* IL;
 	char* varName;

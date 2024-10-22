@@ -1,12 +1,3 @@
-for(let a<-4->7:1){
-	print(a);
-	if(a>5){
-		print(22);
-	}
-	elif(a>4){
-		print(32);
-	}
-	else{
-		print(23);
-	};
-};
+for(let i<-1->1000:let b<-1){
+	print((i+(let b<-i-b))-b);
+}
