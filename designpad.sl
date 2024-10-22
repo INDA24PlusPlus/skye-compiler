@@ -1,6 +1,5 @@
-let i<-0;
-let end<-10;
-let increment<-1;
-::FLAG
-let i=i+increment;
-jump_if(i<10) FLAG;
+let a<-0;
+while(a<10){
+	let a=a+1;
+	print(a);
+};

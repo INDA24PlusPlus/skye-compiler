@@ -929,8 +929,6 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 				Node* node=parseTokens(parser, 'R', ' ', ' ', NULL, 0, "");
 				return node;
 			}
-
-			
 		}
 		TokType* tts=malloc(sizeof(TokType)*3);
 		tts[0]=AND;
@@ -1335,7 +1333,6 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 		exit(1);
 	}
 	return NULL;
-	
 }
 typedef struct{
 	Token* name;
@@ -1496,6 +1493,7 @@ CompilerRetValue* IlFromNode(Node* node, CTimeContext* ctx){
 			CompilerRetValue* cnV=malloc(sizeof(CompilerRetValue));
 			cnV->varName="";
 			cnV->IL=cA->ptr;
+			return cnV;
 			break;
 		case TYPE_NODE:
 			break;
@@ -1596,14 +1594,33 @@ CompilerRetValue* IlFromNode(Node* node, CTimeContext* ctx){
 		case IF_NODE:
 			break;
 		case FOR_NODE:
-			StrBuf* flBuf=initStrBuf();
-			char* startFlag=getILFlagNames(ctx);
-			char* endFlag=getILFlagNames(ctx);
-
-			char* topStr=malloc(sizeof(" = copy \n = copy \n = copy \n"));
+			char* flStartFlag=getILFlagNames(ctx);
+			char* flEndFlag=getILFlagNames(ctx);
+			CompilerRetValue* flV=malloc(sizeof(CompilerRetValue));
 			CompilerRetValue* flBody=IlFromNode((Node*)node->node->for_node->body, ctx);
+			CompilerRetValue* flIncExpr=IlFromNode((Node*)node->node->for_node->step,ctx);
+			CompilerRetValue* flStart=IlFromNode((Node*)node->node->for_node->start,ctx);
+			CompilerRetValue* flEnd=IlFromNode((Node*)node->node->for_node->end,ctx);
+			char* flVarStr=malloc(strLen(node->node->for_node->variable->expr)+2);
+			char* flCond=getILVarNames(ctx);
+			sprintf(flVarStr+1,"%s",node->node->for_node->variable->expr);
+			flVarStr[0]='%';
+			flV->IL=malloc(sizeof("=w copy \n\n=w add , \n=w csltw , \njnz , , \n\n")+strLen(flEndFlag)*2+strLen(flBody->IL)+strLen(flIncExpr->IL)+strLen(flIncExpr->varName)+strLen(flStart->IL)+strLen(flStart->varName)+strLen(flEnd->IL)+strLen(flEnd->varName)+strLen(flStartFlag)*2+strLen(flVarStr)*4+strLen(flCond)*2);
+			sprintf(flV->IL,"%s%s%s%s=w copy %s\n%s\n%s%s=w add %s, %s\n%s=w csltw %s, %s\njnz %s, %s, %s\n%s\n",flIncExpr->IL, flStart->IL, flEnd->IL,flVarStr,flStart->varName,flStartFlag,flBody->IL,flVarStr,flVarStr,flIncExpr->varName,flCond,flVarStr,flEnd->varName,flCond,flStartFlag,flEndFlag,flEndFlag);
+			flV->varName="";
+			return flV;
 			break;
 		case WHILE_NODE:
+			char* wlStartFlag=getILFlagNames(ctx);
+			char* wlEndFlag=getILFlagNames(ctx);
+			CompilerRetValue* wlV=malloc(sizeof(CompilerRetValue));
+			CompilerRetValue* wlBody=IlFromNode((Node*)node->node->while_node->body, ctx);
+			CompilerRetValue* wlCond=IlFromNode((Node*)node->node->while_node->condition,ctx);
+			wlV->IL=malloc(sizeof("\njnz , , \n\n")+strLen(wlEndFlag)*2+strLen(wlBody->IL)+strLen(wlStartFlag)*2+strLen(wlCond->IL)+strLen(wlCond->varName));
+			sprintf(wlV->IL,"%s\n%s%sjnz %s, %s, %s\n%s\n",wlStartFlag,wlBody->IL,wlCond->IL,wlCond->varName,wlStartFlag,wlEndFlag,wlEndFlag);
+			wlV->varName="";
+			return wlV;
+
 			break;
 		case FLAG_NODE:
 			CompilerRetValue* fV=malloc(sizeof(CompilerRetValue));
