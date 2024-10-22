@@ -46,29 +46,29 @@ typedef enum {
 
 #define longestkw 10
 #define shortestkw 2
-#define numKw 16	//21
+#define numKw 11	//21
 char* keywords[]={
-	"if", 		//if
+	"if",	 	//if
 	"else", 	//ee
 	"elif", 	//ef
 	"jump_if",	//jf
 	"jump", 	//jp
-	"func", 	//fc
+	//"func", 	//fc
 	"not", 		//nt
 	//"malloc",	//mc
 	//"free",	//fe
 	//"and", 	//ad
 	//"or", 	//or
 	//"xor", 	//xr
-	"pow",		//pw
+	//"pow",	//pw
 	"let",	 	//lt
 	"jump_depth",	//jh
-	"continue",	//ce
-	"return",	//rn
+	//"continue",	//ce
+	//"return",	//rn
     	"for",		//fr
     	"while",	//we
-	"print",	//pt
-	"println"	//pn
+	//"println",	//pn
+	"print"		//pt
 };
 
 typedef struct {
@@ -1592,6 +1592,47 @@ CompilerRetValue* IlFromNode(Node* node, CTimeContext* ctx){
 			printf("}");
 			break;
 		case IF_NODE:
+			StrBuf* iBody=initStrBuf();
+			StrBuf* iIL=initStrBuf();
+			StrBuf* iHead=initStrBuf();
+			StrBuf* iA=initStrBuf();
+			char* iEndFlag=getILFlagNames(ctx);
+			for(int i=0; i<*node->node->if_node->casenum;i++){
+				CompilerRetValue* ifcCond=IlFromNode((Node*)node->node->if_node->cases[i]->condition, ctx);
+				CompilerRetValue* ifcBody=IlFromNode((Node*)node->node->if_node->cases[i]->expression, ctx);
+				writeChars(iIL, ifcCond->IL);
+				char* ifcFlag=getILFlagNames(ctx);
+				char* ifcSkipFlag=getILFlagNames(ctx);
+				char* ijmpExpr=malloc(sizeof("jnz ,,\n\n")+strLen(ifcCond->varName)+strLen(ifcFlag)+strLen(ifcSkipFlag)*2);
+				sprintf(ijmpExpr,"jnz %s,%s,%s\n%s\n",ifcCond->varName,ifcFlag,ifcSkipFlag,ifcSkipFlag);
+				writeChars(iHead, ijmpExpr);
+				writeChars(iBody, ifcFlag);
+				writeChar(iBody,'\n');
+				writeChars(iBody, ifcBody->IL);
+				writeChars(iBody,"jmp ");
+				writeChars(iBody, iEndFlag);
+				writeChar(iBody, '\n');
+			}
+			CompilerRetValue* iecBody=IlFromNode((Node*)node->node->if_node->elsecase, ctx);
+			char* iecFlag=getILFlagNames(ctx);
+			char* ijmpExpr=malloc(sizeof("jmp \n")+strLen(iecFlag));
+			sprintf(ijmpExpr,"jmp %s\n",iecFlag);
+			writeChars(iHead, ijmpExpr);
+			writeChars(iBody, iecFlag);
+			writeChar(iBody,'\n');
+			writeChars(iBody, iecBody->IL);			
+			writeChars(iBody, iEndFlag);
+			writeChar(iBody, '\n');
+			writeChars(iA, iIL->ptr);
+			writeChars(iA, iHead->ptr);
+			writeChars(iA, iBody->ptr);
+			freeStrBuf(iHead);
+			freeStrBuf(iIL);
+			freeStrBuf(iBody);
+			CompilerRetValue* ifV=malloc(sizeof(CompilerRetValue));
+			ifV->varName="";
+			ifV->IL=iA->ptr;
+			return ifV;
 			break;
 		case FOR_NODE:
 			char* flStartFlag=getILFlagNames(ctx);
@@ -1631,6 +1672,14 @@ CompilerRetValue* IlFromNode(Node* node, CTimeContext* ctx){
 			return fV;
 			break;
 		case JUMP_NODE:
+			*ctx->dpth+=1;
+			CompilerRetValue* jmV=malloc(sizeof(CompilerRetValue));
+			jmV->IL=malloc(sizeof("jmp @\n")+strLen(node->node->jump->flag_name->expr));
+			sprintf(jmV->IL,"jmp @%s\n", node->node->jump->flag_name->expr);
+			jmV->varName="";
+			return jmV;
+			break;
+
 			printf("{JumpNode|Flag Name:");
 			printToken(node->node->jump->flag_name);
 			printf("}");
@@ -1677,7 +1726,6 @@ int main(int argc, char **argv) {
 	fclose(progIn);
 	Lexer* lex=initLexer(prog->ptr);
 	parseLexer(lex);
-	printTokens(lex->toks);
 	Parser* par=initParser(lex->toks);
 	parseTokens(par, 'P', ' ', ' ', NULL, 0, "isRoot");
 	char* IL=CompileAST(par);
@@ -1695,7 +1743,6 @@ int main(int argc, char **argv) {
 	outStr[p+1]='o';
 	progOut = fopen(outStr, "w");
 	fprintf(progOut,"%s", IL);
-	printf("%s\n", IL);
 	fclose(progOut);
 
 	char wd[512];
@@ -1726,5 +1773,4 @@ int main(int argc, char **argv) {
 	system(command2);
 	system(command3);
 	return 0;
-	//printNode(par->ast->roots[1]);
 }
