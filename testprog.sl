@@ -1,4 +1,7 @@
-
-for(let i<-0->16:let c<-(let a<-1+(let b<-0))){
-	print(let b<-(let a<-a+b)-b);
+func main() int{
+	for(int i<-0->16:int c<-(int a<-1+(int b<-0))){
+		print(int b<-(int a<-a+b)-b);
+	}
+	return(0);
 }
+
