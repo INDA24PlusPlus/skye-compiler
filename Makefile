@@ -5,3 +5,4 @@ compiler: main.o
 	$(CC) $(CFLAGS) $? -o $@ $(CLIBS)
 main.o: main.c
 	$(CC) $(CFLAGS) -c $? -o $@ $(CLIBS)
+

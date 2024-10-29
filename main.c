@@ -1735,7 +1735,7 @@ CompilerRetValue* IlFromNode(Node* node, CTimeContext* ctx){
 				CompilerRetValue* prev=IlFromNode((Node*)node->node->unop->node, ctx);
 				CompilerRetValue* unV=malloc(sizeof(CompilerRetValue));
 				unV->varName=getILVarNames(ctx);
-				unV->IL= malloc(sizeof(" = sub 0, \n")+6+1+strLen(prev->IL)+strLen(prev->varName));
+				unV->IL= malloc(sizeof(" = sub 0, \n")+strLen(unV->varName)+1+strLen(prev->IL)+strLen(prev->varName));
 				sprintf(unV->IL,"%s%s =%s sub 0, %s\n",prev->IL,unV->varName,evalsToFloat(ctx,(Node*)node->node->unop->node)?"d":"w",prev->varName);
 				return unV;
 
@@ -1961,7 +1961,7 @@ CompilerRetValue* IlFromNode(Node* node, CTimeContext* ctx){
 	}
 	return NULL;
 }
-char* CompileAST(Parser* parser){
+char* CompileAST(Parser* parser, char** libs, int libc){
 	StrBuf* strb=initStrBuf();
 	CTimeContext* ctx=goDeeper(NULL);
 	//writeChars(strb, "export function w $main() {\n@start\n");
@@ -1976,9 +1976,66 @@ char* CompileAST(Parser* parser){
 	return strb->ptr;
 }
 int main(int argc, char **argv) {
+	char* fp;
+	char** libs=malloc(1);
+	int libcount=0;
+	int fpSet=0;
+	int outfileSet=0;
+	int cleanup=0;
+	char* outfile;
+	int silent=0;
+
+	if(argc>1){
+		char* curr=argv[1];
+		char* prev=argv[0];
+		for(int i=1; i<argc;i++){
+			curr=argv[i];
+			if(curr[0]=='-'){
+				if(curr[1]=='l'){
+					libs=realloc(libs,(libcount+2)*sizeof(char*));
+					libs[libcount]=malloc(strLen(curr)+1);
+					sprintf(libs[libcount],"%s",curr);
+					libcount++;
+				}
+				else if(strcmp(curr, "-s")==0||strcmp(curr, "--silent")==0){
+					silent=1;
+				}
+				else if(strcmp(curr, "-c")==0||strcmp(curr, "--clenup")==0){
+					cleanup=1;
+				}
+				else if(strcmp(curr, "-o")==0){
+					if(i==(argc-1)){
+						printf("invalid flag structure\n");
+						exit(1);
+					}
+				}
+			}
+			else if(strcmp(prev, "-o")==0){
+				if(outfileSet){
+					printf("invalid flag structure\n");
+					exit(1);
+				}
+				outfile=malloc(strLen(curr)+3);
+				sprintf(outfile,"./%s",curr);
+				outfileSet=1;
+			}
+			else if(!fpSet){
+				fp=malloc(strLen(curr)+3);
+				sprintf(fp,"./%s",curr);
+				fpSet=1;
+			}
+			else{
+				printf("invalid flag structure\n");
+				exit(1);
+
+			}
+			prev=curr;
+		}
+	}
+
 	FILE* progIn;
 	StrBuf* prog=initStrBuf();
-	progIn=fopen(argv[1], "r");
+	progIn=fopen(fp, "r");
 	char ch;
 	while((ch = fgetc(progIn)) != EOF){
 		writeChar(prog, ch);
@@ -1988,7 +2045,7 @@ int main(int argc, char **argv) {
 	parseLexer(lex);
 	Parser* par=initParser(lex->toks);
 	parseTokens(par, 'P', ' ', ' ', NULL, 0, "isRoot");
-	char* IL=CompileAST(par);
+	char* IL=CompileAST(par, libs, libcount);
 	FILE* progOut;
 	int p=0;
 	for(int i=0; i<strLen(argv[1]); i++){
@@ -2028,9 +2085,17 @@ int main(int argc, char **argv) {
 	system(command1);
 	char* command2=malloc(sizeof("qbe  -o ")+strLen(outStr)+strLen(outStr2));
 	sprintf(command2, "qbe %s -o %s", outStr, outStr2);
-	char* command3=malloc(sizeof("cc  -o ")+strLen(outStr2)+strLen(outStr3));
-	sprintf(command3, "cc %s -o %s", outStr2, outStr3);
+	char* command3=malloc(sizeof("cc  -o ")+strLen(outStr2)+strLen(outfileSet?outfile:outStr3));
+	sprintf(command3, "cc %s -o %s", outStr2, outfileSet?outfile:outStr3);
 	system(command2);
 	system(command3);
+	if(cleanup){	
+		char* command4=malloc(sizeof("rm ")+strLen(outStr));
+		char* command5=malloc(sizeof("rm ")+strLen(outStr2));
+		sprintf(command4, "rm %s", outStr);
+		sprintf(command5, "rm %s", outStr2);
+		system(command4);
+		system(command5);
+	}
 	return 0;
 }
