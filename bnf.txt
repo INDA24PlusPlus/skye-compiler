@@ -1,6 +1,5 @@
-<type> ::= "int" | "float" | "(" <typechain> ")" | <typechain> | <tuple>
-<tuple> ::= "(" <type> "," ( <type> "," )* <type> ")"
-<typechain> ::= <type> "->" ( <type> | <typechain> ) 
+<type> ::= "int" | "float" 
+ 
 <int> ::= "0" | [1-9] [0-9]*
 <float> ::= <int> "." [0-9]+
 <atom> ::= ( "(" <term> ")" | "(" <expr> ")" | "(" <atom> ")" | <int> | <float> | <varname> )

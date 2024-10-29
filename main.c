@@ -46,30 +46,32 @@ typedef enum {
 
 #define longestkw 10
 #define shortestkw 2
-#define numKw 14	//22
+#define numKw 16	//24
 char* keywords[]={
-	"if",	 	//if
-	"else", 	//ee
-	"elif", 	//ef
-	"jump_if",	//jf
-	"jump", 	//jp
-	"int",		//it
-	"float",	//ft
-	"func", 	//fc
-	"not", 		//nt
-	//"malloc",	//mc
-	//"free",	//fe
-	//"and", 	//ad
-	//"or", 	//or
-	//"xor", 	//xr
-	//"pow",	//pw
-	"jump_depth",	//jh
-	//"continue",	//ce
-	"return",	//rn
-    	"for",		//fr
-    	"while",	//we
-	//"println",	//pn
-	"print"		//pt
+	"if",	 	
+	"else", 	
+	"elif", 	
+	"jump_if",	
+	"jump", 	
+	"int",		
+	"float",	
+	"func", 	
+	"not", 		
+	//"malloc",	
+	//"free",	
+	//"and", 	
+	//"or", 	
+	//"xor", 	
+	//"pow",	
+	"jump_depth",	
+	"fTi",		
+	"iTf",		
+	//"continue",	
+	"return",	
+    	"for",		
+    	"while",	
+	//"println",	
+	"print"		
 };
 
 typedef struct {
@@ -1384,7 +1386,7 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 				advanceParser(parser);
 			} else {
 				Node* arg=parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
-				cn->args=realloc(cn->args, (lenNodes+2)*sizeof(Node*));
+				cn->args=realloc(cn->args, (lenNodes+2)*sizeof(struct Node*));
 				lenNodes++;
 				cn->args[lenNodes-1]=(struct Node*)arg;
 				if(*parser->LLT->self->type==COMMA){
@@ -1392,7 +1394,7 @@ Node* parseTokens(Parser* parser, char path, char p1, char p2, TokType* tType, i
 					while(c){
 						advanceParser(parser);
 						arg=parseTokens(parser, 'e', ' ', ' ', NULL, 0, "");
-						cn->args=realloc(cn->args, (lenNodes+2)*sizeof(Node*));
+						cn->args=realloc(cn->args, (lenNodes+2)*sizeof(struct Node*));
 						lenNodes++;
 						cn->args[lenNodes-1]=(struct Node*)arg;
 						if(*parser->LLT->self->type!=COMMA) c=0;
@@ -1494,6 +1496,7 @@ typedef struct{
 	int* nfuncs;
 	int* dpth;
 	int* nILVarNames;
+	Node* cFunc;
 } CTimeContext;
 
 CTimeContext* goDeeper(CTimeContext* ctx){
@@ -1511,6 +1514,7 @@ CTimeContext* goDeeper(CTimeContext* ctx){
 	*c->dpth=ctx==NULL?0:*ctx->dpth+1;
 	c->nILVarNames=malloc(sizeof(int));
 	*c->nILVarNames=ctx==NULL?0:*ctx->nILVarNames;
+	c->cFunc=NULL;
 	return c;	
 }
 int isConstant(Node* node){
@@ -1564,6 +1568,10 @@ int varIsFloat(CTimeContext* ctx, Token* varname){
 	for(int i=0; i<*ctx->nvars;i++){
 		if(strcmp(ctx->vars[i]->name->expr,varname->expr)==0) return *ctx->vars[i]->evalsToFloat;
 	}
+	if(ctx->cFunc==NULL) return 0;
+	for(int i=0; i<*ctx->cFunc->node->func_def->argc;i++){
+		if(strcmp(varname->expr,ctx->cFunc->node->func_def->args[i]->name->expr)==0) return(*ctx->cFunc->node->func_def->args[i]->type==Float);
+	}
 	return 0;
 
 }
@@ -1571,6 +1579,7 @@ Node* getFunc(CTimeContext* ctx, Token* funcname){
 	for(int i=0; i<*ctx->nfuncs;i++){
 		if(strcmp(ctx->funcs[i]->name->expr,funcname->expr)==0) return ctx->funcs[i]->defNode;
 	}
+	printf("Function '%s' does not exist. Line:%d Column:%d\n",funcname->expr,*funcname->ln_start, *funcname->col_start);
 	exit(20);
 }
 int evalsToFloat(CTimeContext* ctx, Node* node){
@@ -1907,12 +1916,11 @@ CompilerRetValue* IlFromNode(Node* node, CTimeContext* ctx){
 			break;
 		case CALL_NODE:
 			StrBuf* cnA=initStrBuf();
-			if(!funcExists(ctx,node->node->call->target)) exit(100);
+			if(!funcExists(ctx,node->node->call->target)){printf("aaa\n");exit(100);}
 			Node* fNode=getFunc(ctx, node->node->call->target);
+			Node* pFunc=ctx->cFunc;
+			ctx->cFunc=fNode;
 			char* cnVarName=getILVarNames(ctx);
-			
-
-			StrBuf* cnILs=initStrBuf();
 			StrBuf* cnCaller=initStrBuf();
 			writeChars(cnCaller, cnVarName);
 			if(*fNode->node->func_def->return_type==Integer) writeChars(cnCaller, "=w call $");
@@ -1924,17 +1932,17 @@ CompilerRetValue* IlFromNode(Node* node, CTimeContext* ctx){
 				if(cccheck)writeChars(cnCaller, ", ");
 				else cccheck=1;
 				CompilerRetValue* cnArgIL=IlFromNode((Node*)node->node->call->args[i],ctx);
-				writeChars(cnILs, cnArgIL->IL);
+				writeChars(cnA, cnArgIL->IL);
 				if(*fNode->node->func_def->args[i]->type==Integer) writeChars(cnCaller, "w ");
 				else writeChars(cnCaller, "d ");
 				writeChars(cnCaller, cnArgIL->varName);
 			}
 			writeChars(cnCaller, ")\n");
-			writeChars(cnA,cnILs->ptr);
 			writeChars(cnA, cnCaller->ptr);
 			CompilerRetValue* cnVa=malloc(sizeof(CompilerRetValue));
 			cnVa->varName=cnVarName;
 			cnVa->IL=cnA->ptr;
+			ctx->cFunc=pFunc;
 			return cnVa;
 			break;
 		case RETURN_NODE:
@@ -1964,7 +1972,6 @@ char* CompileAST(Parser* parser){
 		writeChars(strb, IlFromNode(parser->ast->roots[i], ctx)->IL);
 	}
 	writeChars(strb, "\ndata $fmtw = { b \"\%d\\n\", b 0 }\ndata $fmtd = { b \"\%lf\\n\", b 0 }");
-
 
 	return strb->ptr;
 }
