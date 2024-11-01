@@ -1598,7 +1598,17 @@ int evalsToFloat(CTimeContext* ctx, Node* node){
 
 	return 0;
 }
-
+int isComparison(Token* Tok){
+	TokType tt=*Tok->type;
+	return(
+		tt==EE ||
+		tt==NE ||
+		tt==LT ||
+		tt==GT ||
+		tt==LTE||
+		tt==GTE
+	);
+}
 
 typedef struct{
 	char* IL;
@@ -1704,6 +1714,10 @@ CompilerRetValue* IlFromNode(Node* node, CTimeContext* ctx){
 			CompilerRetValue* left=IlFromNode((Node*)node->node->binop->left, ctx);
 			CompilerRetValue* right=IlFromNode((Node*)node->node->binop->right, ctx);
 			CompilerRetValue* bnV=malloc(sizeof(CompilerRetValue));
+			if(isComparison(node->node->binop->token)&&(evalsToFloat(ctx,(Node*)node->node->binop->right)!=evalsToFloat(ctx, (Node*)node->node->binop->left))){
+				printf("aaaaaaaaaaaaaaaaaaaaa\n");
+				exit(1232);
+			}
 			bnV->varName=getILVarNames(ctx);
 			bnV->IL = malloc(sizeof(" =  , \n")+6+5+1+strLen(left->IL)+strLen(left->varName)+strLen(right->IL)+strLen(right->varName));
 			TokType tt=*node->node->binop->token->type;
