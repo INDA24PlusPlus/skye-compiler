@@ -68,8 +68,8 @@ char* keywords[]={
 	"iTf",		
 	//"continue",	
 	"return",	
-    	"for",		
-    	"while",	
+    "for",		
+    "while",	
 	//"println",	
 	"print"		
 };
